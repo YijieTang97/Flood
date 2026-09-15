@@ -1,1 +1,0 @@
-Copy the existing Zhongzhou Town shapefiles here and all hourly Depth TIFFs into Flood_clipped.
