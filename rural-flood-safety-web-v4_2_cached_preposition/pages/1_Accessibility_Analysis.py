@@ -6,7 +6,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from data_config import *
-from flood_engine import catalog, depth_matrices
+from flood_engine import catalog, depth_matrices_cached
 from assessment_engine import assess_buildings
 from accessibility_engine import calculate_accessibility
 from accessibility_map import create_accessibility_map, add_selected_route
@@ -20,7 +20,7 @@ def loadv(p):
 @st.cache_data(show_spinner=False)
 def assessed_at(building_path,flood_folder,idx):
     b=gpd.read_file(building_path);rs=catalog(flood_folder)
-    cur,cum=depth_matrices(b,rs,idx)
+    cur,cum=depth_matrices_cached(b,rs,idx,FLOOD_MATRIX_CACHE)
     return assess_buildings(b,cur,cum,idx+1)
 
 base=loadv(str(BUILDING_FILE)) if BUILDING_FILE else None
@@ -63,8 +63,21 @@ with st.sidebar:
 assessed=assessed_at(str(BUILDING_FILE),str(FLOOD_DIR),idx)
 fac={"supply":supply,"rescue":medical,"evacuation":shelter}[mode]
 
-with st.spinner("Building V19 multimodal road graph and calculating accessibility..."):
-    results,summary,metric=calculate_accessibility(base,assessed,roads,fac,rows[idx]["path"],mode)
+@st.cache_data(show_spinner=False)
+def cached_accessibility(building_path,road_path,facility_path,flood_path,mode,idx):
+    b=gpd.read_file(building_path)
+    r=gpd.read_file(road_path)
+    f=gpd.read_file(facility_path)
+    rs=catalog(FLOOD_DIR)
+    cur,cum=depth_matrices_cached(b,rs,idx,FLOOD_MATRIX_CACHE)
+    a=assess_buildings(b,cur,cum,idx+1)
+    return calculate_accessibility(b,a,r,f,Path(flood_path),mode)
+
+facility_path={"supply":SUPPLY_FILE,"rescue":MEDICAL_FILE,"evacuation":SHELTER_FILE}[mode]
+with st.spinner("Calculating V19 multimodal accessibility..."):
+    results,summary,metric=cached_accessibility(
+        str(BUILDING_FILE),str(EXTENDED_ROAD_FILE),str(facility_path),str(rows[idx]["path"]),mode,idx
+    )
 
 a,b,c,d,e=st.columns(5)
 a.metric("Demand Buildings",f"{summary['total']:,}")
@@ -177,4 +190,4 @@ with st.expander("Accessibility Result Table"):
             "Reason":v.get("reason","")})
     st.dataframe(pd.DataFrame(table),hide_index=True,use_container_width=True,height=420)
 
-st.caption("V3.2 · Full first/last-mile walking connectors + selected target highlighting + route interaction")
+st.caption("V4.3 · Cached scenario accessibility · Precomputed flood-depth matrix · Full first/last-mile walking connectors + selected target highlighting + route interaction")

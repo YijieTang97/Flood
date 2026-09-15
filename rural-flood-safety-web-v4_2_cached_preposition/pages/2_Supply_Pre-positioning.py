@@ -5,7 +5,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from data_config import *
-from flood_engine import catalog
+from flood_engine import catalog, load_depth_cache
 from assessment_engine import assess_buildings
 from accessibility_engine import demand_records
 from preposition_engine import run_preposition, GRID_M, SAFE_DEPTH_M, SITE_COUNT, MIN_SEPARATION_M
@@ -35,12 +35,12 @@ with st.sidebar:
     st.metric("Flood-safe Threshold",f"≤ {SAFE_DEPTH_M:.2f} m")
     st.metric("Selected Sites",f"{SITE_COUNT}")
     st.metric("Minimum Separation",f"{MIN_SEPARATION_M:.0f} m")
-    st.info("V4.2 preserves the V19 pre-positioning parameters. Results are cached after calculation, so map zoom/pan will not trigger recalculation. The most severe supply-demand flood hour is selected automatically.")
+    st.info("V4.3 preserves the V19 parameters and uses precomputed flood-depth / candidate caches when available. Map interaction does not trigger recalculation. The most severe supply-demand flood hour is selected automatically.")
 
 # V4.2: optimization is explicitly triggered and stored in session_state.
 # Folium zoom/pan/click causes a Streamlit rerun, but does NOT rerun optimization.
-CACHE_KEY="_v42_preposition_result"
-SIG_KEY="_v42_preposition_signature"
+CACHE_KEY="_v43_preposition_result"
+SIG_KEY="_v43_preposition_signature"
 
 def _data_signature():
     parts=[str(len(rows)),str(len(buildings)),str(len(boundary))]
@@ -73,8 +73,17 @@ if run_clicked:
         frac=1.0 if total<=0 else min(1.0,max(0.0,done/total))
         progress_bar.progress(frac,text=f"{label}: {done}/{total}")
         status.caption(label)
+    depth_cache=load_depth_cache(FLOOD_MATRIX_CACHE,len(buildings),len(rows))
+    safe_cache=loadv(str(PREPOSITION_CANDIDATE_CACHE)) if PREPOSITION_CANDIDATE_CACHE.exists() else None
+    if depth_cache is not None:
+        status.caption("Using precomputed building flood-depth matrix")
+    if safe_cache is not None:
+        status.caption("Using precomputed flood-safe candidate sites")
     with st.spinner("Optimizing emergency supply pre-positioning sites..."):
-        out=run_preposition(buildings,boundary,rows,assess_buildings,demand_records,metric,_progress)
+        out=run_preposition(
+            buildings,boundary,rows,assess_buildings,demand_records,metric,_progress,
+            depth_matrix=depth_cache,safe_candidate_cache=safe_cache
+        )
     st.session_state[CACHE_KEY]=out
     st.session_state[SIG_KEY]=signature
     progress_bar.empty()
@@ -135,4 +144,4 @@ else:
 with st.expander("Method"):
     st.write("Candidates are generated on a regular 500 m grid inside the town boundary. A candidate is retained only if its maximum flood depth over all hourly rasters is ≤ 0.05 m. Five sites are then selected sequentially using the V19 greedy p-median-style objective: mean distance to the nearest selected site + 0.25 × the 90th-percentile distance, while preferring at least 500 m separation between selected sites.")
 
-st.caption("V4.2 · Emergency Supply Pre-positioning · Explicit run + session-cached optimization · V19 flood-safe screening and greedy p-median-style site optimization")
+st.caption("V4.3 · Performance Edition · Precomputed GIS cache + session-cached optimization · V19 flood-safe screening and greedy p-median-style site optimization")
