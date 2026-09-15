@@ -51,3 +51,26 @@ def depth_matrices(gdf, rows, upto_index):
         z=np.zeros(len(gdf),float); return z,z
     mat=np.vstack(series)
     return mat[-1],np.maximum.accumulate(mat,axis=0)[-1]
+
+
+def load_depth_cache(cache_path, expected_buildings=None, expected_hours=None):
+    p=Path(cache_path)
+    if not p.exists(): return None
+    try:
+        z=np.load(p,allow_pickle=False)
+        mat=np.asarray(z["depth"],dtype=np.float32)
+        if mat.ndim!=2:return None
+        if expected_buildings is not None and mat.shape[1]!=int(expected_buildings):return None
+        if expected_hours is not None and mat.shape[0]!=int(expected_hours):return None
+        return mat
+    except Exception:
+        return None
+
+def depth_matrices_cached(gdf, rows, upto_index, cache_path=None):
+    """Use precomputed Building × Hour matrix when available; otherwise fall back to TIFF sampling."""
+    if cache_path:
+        mat=load_depth_cache(cache_path,len(gdf),len(rows))
+        if mat is not None:
+            i=max(0,min(int(upto_index),mat.shape[0]-1))
+            return mat[i].astype(float),np.max(mat[:i+1],axis=0).astype(float)
+    return depth_matrices(gdf,rows,upto_index)

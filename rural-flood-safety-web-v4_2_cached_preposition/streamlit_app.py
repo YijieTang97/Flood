@@ -5,7 +5,7 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 from data_config import *
-from flood_engine import catalog, depth_matrices
+from flood_engine import catalog, depth_matrices_cached
 from assessment_engine import assess_buildings
 from web_map import create_map, nearest_clicked
 
@@ -83,7 +83,7 @@ def load_vector(path):
 def run_hour(buildings_path, flood_folder, index):
     b = gpd.read_file(buildings_path)
     rows = catalog(flood_folder)
-    cur, cum = depth_matrices(b, rows, index)
+    cur, cum = depth_matrices_cached(b, rows, index, FLOOD_MATRIX_CACHE)
     return assess_buildings(b, cur, cum, index + 1)
 
 
@@ -374,7 +374,7 @@ with st.expander("Data & Layer Status"):
     st.dataframe(status, hide_index=True, use_container_width=True)
 
 st.caption(
-    "V3.0 · Integrated flood vulnerability assessment + dynamic multimodal accessibility · "
+    "V4.3 · Performance Edition · Precomputed flood-depth cache · Integrated flood vulnerability assessment + dynamic multimodal accessibility · "
     "Dynamic HEC-RAS depth · Building-level vulnerability, economic loss, "
     "human safety risk and early-warning benefit."
 )

@@ -29,3 +29,8 @@ EXTENDED_ROAD_FILE = first_existing("extended_r.shp", "extended_road.shp", "zhon
 MEDICAL_FILE = first_existing("extended_m.shp", "zhongzhou_medi.shp")
 SUPPLY_FILE = first_existing("zhongzhou_flood_supply_points.shp", "huaiji_zhongzhou_supply_points.shp", "supply_points.shp")
 SHELTER_FILE = first_existing("zhongzhou_flood_shelter_points.shp", "huaiji_zhongzhou_shelter_points.shp", "shelter_points.shp")
+
+# V4.3 precomputed web cache
+CACHE_DIR = ROOT / "web_cache"
+FLOOD_MATRIX_CACHE = CACHE_DIR / "building_flood_depths.npz"
+PREPOSITION_CANDIDATE_CACHE = CACHE_DIR / "preposition_candidates.gpkg"

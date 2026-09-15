@@ -100,9 +100,9 @@ def select_sites(safe_candidates,demand_houses,n_sites=SITE_COUNT,min_sep=MIN_SE
         result["mean_assigned_distance_m"]=[float(D[i,assign==i].mean()) if np.any(assign==i) else np.nan for i in range(len(result))]
     return result
 
-def run_preposition(buildings,boundary,rows,assess_func,demand_records_func,metric_crs,progress=None):
+def run_preposition(buildings,boundary,rows,assess_func,demand_records_func,metric_crs,progress=None,depth_matrix=None,safe_candidate_cache=None):
     # V4.1: O(H) raster passes, replacing V4.0's repeated O(H^2) rescans.
-    mat=build_depth_matrix(buildings,rows,progress)
+    mat=np.asarray(depth_matrix,dtype=np.float32) if depth_matrix is not None else build_depth_matrix(buildings,rows,progress)
     worst_idx,severity=find_worst_hour_from_matrix(mat)
     cur=mat[worst_idx]
     cum=np.max(mat[:worst_idx+1],axis=0)
@@ -110,7 +110,13 @@ def run_preposition(buildings,boundary,rows,assess_func,demand_records_func,metr
     houses=demand_records_func(buildings,assessed,metric_crs,None,None,"supply",allow_no_tree=True)
     demand=[h for h in houses if h.get("cum",0)>=0.30]
     candidates=generate_candidate_grid(boundary,metric_crs)
-    safe=filter_never_flooded(candidates,rows,SAFE_DEPTH_M,progress)
+    if safe_candidate_cache is not None and not safe_candidate_cache.empty:
+        safe=safe_candidate_cache.to_crs(metric_crs).copy()
+        # Retain V19 safety criterion; cache contains only event-safe candidates.
+        if "never_flooded" in safe.columns:
+            safe=safe[safe["never_flooded"].astype(bool)].copy()
+    else:
+        safe=filter_never_flooded(candidates,rows,SAFE_DEPTH_M,progress)
     selected=select_sites(safe,demand)
     if progress:progress(1,1,"Optimization complete")
     return dict(worst_idx=worst_idx,severity=severity,assessed=assessed,demand=demand,
